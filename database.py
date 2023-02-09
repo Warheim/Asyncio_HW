@@ -24,7 +24,7 @@ class People(Base):
     height = Column(Integer)
     homeworld = Column(String)
     mass = Column(Integer)
-    name = Column(String, nullable=False)
+    name = Column(String)
     skin_color = Column(String)
     created = Column(TIMESTAMP)
     edited = Column(TIMESTAMP)
