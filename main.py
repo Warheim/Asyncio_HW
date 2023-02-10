@@ -15,25 +15,27 @@ async def json_get(url: str, session: ClientSession):
         return json_data
 
 
+async def content_request(key, url, json_data, session: ClientSession):
+    async with session.get(url) as response:
+        values = []
+        content_data = await response.json()
+        values.append(list(content_data.values())[0])
+        json_data[key] = ''.join(values)
+        return json_data
+
+
 async def url_reader(json_data: dict, session: ClientSession):
+    coros = []
     for key, value in json_data.items():
-        if isinstance(value, list):
-            values = []
-            for item in value:
-                if re.search(url_regex, item):
-                    response = await json_get(item, session=session)
-                    values.append(list(response.values())[0])
-            if values:
-                json_data[key] = ', '.join(values)
-            else:
-                json_data[key] = None
-        elif re.search(url_regex, value) and key != 'url':
-            response = await json_get(value, session=session)
-            json_data[key] = (list(response.values())[0])
-    return json_data
+        if value and value not in ('Not found', 'url') and isinstance(value, list):
+            for url in value:
+                coro = await content_request(key, url, json_data, session=session)
+                coros.append(coro)
+    result = await asyncio.gather(*coros)
+    print(result)
 
 
-async def make_request(people_id: int, session: ClientSession):
+async def people_request(people_id: int, session: ClientSession):
     async with session.get(f'https://swapi.dev/api/people/{people_id}') as response:
         json_data = await response.json()
         result = await url_reader(json_data=json_data, session=session)
@@ -59,12 +61,10 @@ async def main():
         for chunk in chunked(range(1, 100), MAX_REQUESTS):
             coros = []
             for people_id in chunk:
-                coro = make_request(people_id=people_id, session=session)
+                coro = people_request(people_id=people_id, session=session)
                 if coro is not None:
                     coros.append(coro)
             people_list = await asyncio.gather(*coros)
-            print(people_list)
-
 
 
 start = datetime.now()
