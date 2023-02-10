@@ -21,13 +21,13 @@ class People(Base):
     films = Column(String)
     gender = Column(String)
     hair_color = Column(String)
-    height = Column(Integer)
+    height = Column(String)
     homeworld = Column(String)
-    mass = Column(Integer)
+    mass = Column(String)
     name = Column(String)
     skin_color = Column(String)
-    created = Column(TIMESTAMP)
-    edited = Column(TIMESTAMP)
+    created = Column(String)
+    edited = Column(String)
     species = Column(String)
     starships = Column(String)
     url = Column(String)
@@ -35,3 +35,5 @@ class People(Base):
 
 
 Session = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+
