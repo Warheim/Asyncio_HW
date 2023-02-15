@@ -9,57 +9,69 @@ url_regex = re.compile(
     "^(ht|f)tp(s?)\:\/\/[0-9a-zA-Z]([-.\w]*[0-9a-zA-Z])*(:(0-9)*)*(\/?)([a-zA-Z0-9\-\.\?\,\'\/\\\+&amp;%\$#_]*)?$")
 
 
-async def people_request(people_id: int, session: ClientSession):
+async def people_parser(people_id: int, session: ClientSession):
     async with session.get(f'https://swapi.dev/api/people/{people_id}') as response:
         json_data = await response.json()
-        coros = []
+        parsed_data = {}
+
         for key, content in json_data.items():
-            if content and (isinstance(content, str)) and re.search(url_regex, content):
-                coro = content_str_request(content, session=session)
-                coros.append(coro)
-            elif content and isinstance(content, list):
-                coro = content_list_request(content, session=session)
-                coros.append(coro)
-        data_ready = await asyncio.gather(*coros)
-        print(data_ready)
+            if content:
+                if isinstance(content, str) and re.search(url_regex, content) and key != 'url':
+                    coro = await content_request(content=content, session=session)
+                    parsed_data[key] = list(coro.values())[0]
+
+                elif isinstance(content, list):
+                    coros = [content_request(content=url, session=session) for url in content if
+                             re.search(url_regex, url)]
+                    responses = await asyncio.gather(*coros)
+                    items = [list(item.values())[0] for item in responses]
+                    parsed_data[key] = ', '.join(items)
+
+                else:
+                    parsed_data[key] = content
+
+        return parsed_data
 
 
-async def content_str_request(content: str, session: ClientSession):
+async def content_request(content: str, session: ClientSession):
     async with session.get(content) as request:
         response = await request.json()
         return response
 
 
-async def content_list_request(content: list, session: ClientSession):
-    for url in content:
-        async with session.get(url) as request:
-            response = await request.json()
-            return response
+async def paste_to_db(people_list):
+    async with Session() as session:
+        for people in people_list:
+            if 'Not found' not in people.values():
+                post = People(**people)
+                session.add(post)
+                await session.commit()
 
 
-# async def paste_to_db(people_list):
-#     async with Session() as session:
-#         for people in people_list:
-#             post = People(**people)
-#             session.add(post)
-#             await session.commit()
+async def task_handler(tasks: list):
+    asyncio.all_tasks() - {asyncio.current_task()}
+    for task in tasks:
+        await task
 
 
 MAX_REQUESTS = 10
 
 
 async def main():
+    tasks = []
     async with ClientSession() as session:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        for chunk in chunked(range(1, 2), MAX_REQUESTS):
-            coros = []
-            for people_id in chunk:
-                coro = people_request(people_id=people_id, session=session)
-                if coro is not None:
-                    coros.append(coro)
+
+        for chunk in chunked(range(1, 100), MAX_REQUESTS):
+            coros = [people_parser(people_id=people_id, session=session) for people_id in chunk]
             people_list = await asyncio.gather(*coros)
+            filling_db = paste_to_db(people_list)
+            prepare_task = asyncio.create_task(filling_db)
+            tasks.append(prepare_task)
+
+    await task_handler(tasks)
 
 
 start = datetime.now()
