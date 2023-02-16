@@ -11,7 +11,7 @@ url_regex = re.compile(
 
 async def people_parser(people_id: int, session: ClientSession):
     async with session.get(f'https://swapi.dev/api/people/{people_id}') as response:
-        json_data = await response.json()
+        json_data = await response.json(content_type=None)
         parsed_data = {}
 
         for key, content in json_data.items():
@@ -35,7 +35,7 @@ async def people_parser(people_id: int, session: ClientSession):
 
 async def content_request(content: str, session: ClientSession):
     async with session.get(content) as request:
-        response = await request.json()
+        response = await request.json(content_type=None)
         return response
 
 
@@ -74,6 +74,7 @@ async def main():
     await task_handler(tasks)
 
 
-start = datetime.now()
-asyncio.run(main())
-print(datetime.now() - start)
+if __name__ == '__main__':
+    start = datetime.now()
+    asyncio.run(main())
+    print(datetime.now() - start)
